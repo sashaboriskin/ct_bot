@@ -75,7 +75,7 @@ def handle_docs_photo(message):
             new_file.write(downloaded_file)
         arr = read_nii(src)
     bot.reply_to(message, "Ожидайте...")
-    result, lung, ct = segmentation.segmentation(arr)
+    result, lung, ct = segmentation(arr)
         
     
     print(result.shape)
