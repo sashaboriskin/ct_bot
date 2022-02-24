@@ -9,63 +9,38 @@ import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow as tf
 import cv2
+from reader import Reader
 
 TOKEN=config.TOKEN
 bot = telebot.TeleBot(TOKEN)
-
-def read_nii_gz(filepath):
-    '''
-    Reads .nii file and returns pixel array
-    '''
-    with gzip.open(filepath, 'rb') as f_in:
-      with open(filepath[:-3]+'.nii', 'wb') as f_out:
-        shutil.copyfileobj(f_in, f_out)
-    ct_scan = nib.load(filepath[:-3]+'.nii')
-    array   = ct_scan.get_fdata()
-    array   = np.rot90(np.array(array))
-    os.remove(filepath[:-3]+'.nii')
-    os.remove(filepath)
-    return array
-
-def read_nii(filepath):
-    '''
-    Reads .nii file and returns pixel array
-    '''
-    ct_scan = nib.load(filepath)
-    array   = ct_scan.get_fdata()
-    array   = np.rot90(np.array(array))
-    os.remove(filepath)
-    return array
-
 
 @bot.message_handler(content_types=['document'])
 def handle_docs_photo(message):
     #try:
     chat_id = message.chat.id
-
+    
+    #Принимаем файл
     file_info = bot.get_file(message.document.file_id)
     downloaded_file = bot.download_file(file_info.file_path)
-    
-    arr = ''
-    result = ''
-    lung = ''
-    ct = ''
     path = message.document.file_name
-    segmenter = Segmenter()
-    src = './files' + path
-    if path.endswith('.gz'):
-        with open(src, 'wb') as new_file:
-            new_file.write(downloaded_file)
-        arr = read_nii_gz(src)
-
-    if path.endswith('.nii'):
-        with open(src, 'wb') as new_file:
-            new_file.write(downloaded_file)
-        arr = read_nii(src)
+    src = './files/' + path
     bot.reply_to(message, "Ожидайте...")
-    result, lung, ct = segmenter.segmentation(ct_scan=arr)
-        
-    
+
+    #Читаем файл
+    reader = Reader()
+    with open(src, 'wb') as new_file:
+            new_file.write(downloaded_file)
+    arr = reader.read(src)
+    os.remove(src)
+
+    #Сегментируем снимок
+    if not arr is None:
+        segmenter = Segmenter()
+        result, lung, ct = segmenter.segmentation(ct_scan=arr)
+    else:
+        bot.reply_to(message, "Формат файла не распознан")
+        return
+
     print(result.shape)
     height = arr.shape[2]
     for i in range(height):
@@ -85,6 +60,7 @@ def handle_docs_photo(message):
         plt.savefig('./resfig/fig.png')
         bot.send_photo(message.chat.id, photo=open('./resfig/fig.png', 'rb'))
         os.remove('./resfig/fig.png')
+
 #    except Exception as e:
  #       print(message, e)
 
